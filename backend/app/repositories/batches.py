@@ -19,8 +19,9 @@ def insert_batch(
         """
         INSERT INTO project_batches(
             batch_no, stream_id, status, source_events, applied_upsert, applied_delete,
+            applied_rename, rejected_rename,
             skipped_duplicate, projected_alive, projected_deleted, max_seq, note, created_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             batch_no,
@@ -29,6 +30,8 @@ def insert_batch(
             counts["source_events"],
             counts["applied_upsert"],
             counts["applied_delete"],
+            counts.get("applied_rename", 0),
+            counts.get("rejected_rename", 0),
             counts["skipped_duplicate"],
             counts["projected_alive"],
             counts["projected_deleted"],

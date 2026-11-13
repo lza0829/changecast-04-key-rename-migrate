@@ -15,6 +15,7 @@
         <router-link to="/projections">投影快照</router-link>
         <router-link to="/batches">应用批次</router-link>
         <router-link to="/events">事件留痕</router-link>
+        <router-link to="/key-changes">键变更</router-link>
         <router-link to="/buffer">缓冲区</router-link>
         <router-link to="/settings">设置</router-link>
       </nav>

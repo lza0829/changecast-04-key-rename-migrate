@@ -17,7 +17,7 @@ onMounted(async () => {
         <thead>
           <tr>
             <th>批次</th><th>投影流</th><th>状态</th>
-            <th>源事件</th><th>写入</th><th>删除</th><th>跳过</th>
+            <th>源事件</th><th>写入</th><th>删除</th><th>键迁移</th><th>键拒绝</th><th>跳过</th>
             <th>存活</th><th>已删</th><th>max seq</th><th>时间</th>
           </tr>
         </thead>
@@ -29,13 +29,15 @@ onMounted(async () => {
             <td>{{ b.source_events }}</td>
             <td>{{ b.applied_upsert }}</td>
             <td>{{ b.applied_delete }}</td>
+            <td>{{ b.applied_rename }}</td>
+            <td>{{ b.rejected_rename }}</td>
             <td>{{ b.skipped_duplicate }}</td>
             <td>{{ b.projected_alive }}</td>
             <td>{{ b.projected_deleted }}</td>
             <td class="mono">{{ b.max_seq }}</td>
             <td class="mono">{{ b.created_at }}</td>
           </tr>
-          <tr v-if="!rows.length"><td colspan="11" class="muted">尚无批次。</td></tr>
+          <tr v-if="!rows.length"><td colspan="13" class="muted">尚无批次。</td></tr>
         </tbody>
       </table>
     </div>

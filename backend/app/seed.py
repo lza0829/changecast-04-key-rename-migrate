@@ -39,6 +39,12 @@ def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
+    cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+
 def init_db() -> None:
     import json
 
@@ -113,12 +119,33 @@ def init_db() -> None:
                 status TEXT NOT NULL DEFAULT 'open',
                 FOREIGN KEY(stream_id) REFERENCES project_streams(id)
             );
+            CREATE TABLE IF NOT EXISTS key_change_traces(
+                id INTEGER PRIMARY KEY,
+                batch_id INTEGER NOT NULL,
+                stream_id INTEGER NOT NULL,
+                event_id TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                old_key TEXT NOT NULL,
+                new_key TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                reason TEXT,
+                prev_applied_seq INTEGER,
+                prev_applied_event_id TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(batch_id) REFERENCES project_batches(id),
+                FOREIGN KEY(stream_id) REFERENCES project_streams(id)
+            );
             CREATE TABLE IF NOT EXISTS settings(
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
             """
         )
+        # Key-change topic columns (idempotent for pre-existing DBs).
+        _ensure_column(conn, "project_batches", "applied_rename", "applied_rename INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "project_batches", "rejected_rename", "rejected_rename INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "projection_rows", "renamed_from", "renamed_from TEXT")
+        _ensure_column(conn, "projection_rows", "prev_applied_seq", "prev_applied_seq INTEGER")
         if conn.execute("SELECT COUNT(*) c FROM project_streams").fetchone()["c"] == 0:
             now = _now()
             for s in STREAM_SEEDS:
@@ -141,18 +168,15 @@ def init_db() -> None:
                         now,
                     ),
                 )
-        if conn.execute("SELECT COUNT(*) c FROM settings").fetchone()["c"] == 0:
+        for key, value in [
+            ("apply_order", "by_seq"),
+            ("duplicate_policy", "skip"),
+            ("tombstone_mode", "soft_delete"),
+            ("key_change_policy", "migrate"),
+        ]:
             conn.execute(
-                "INSERT INTO settings(key, value) VALUES (?, ?)",
-                ("apply_order", "by_seq"),
-            )
-            conn.execute(
-                "INSERT INTO settings(key, value) VALUES (?, ?)",
-                ("duplicate_policy", "skip"),
-            )
-            conn.execute(
-                "INSERT INTO settings(key, value) VALUES (?, ?)",
-                ("tombstone_mode", "soft_delete"),
+                "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
+                (key, value),
             )
         conn.commit()
     finally:

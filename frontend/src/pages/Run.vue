@@ -36,7 +36,10 @@ onMounted(async () => {
 <template>
   <div class="page">
     <h1>投影台</h1>
-    <p class="muted">选一条投影流，读取 CDC 夹具并按 seq 应用到投影表。底座策略：按事件序投影，软删除留墓碑行。</p>
+    <p class="muted">
+      选一条投影流，读取 CDC 夹具并按 seq 应用到投影表。底座策略：按事件序投影，软删除留墓碑行；
+      键变更事件按当前<router-link to="/settings">键变更策略</router-link>处置（迁移 / 拒绝迁移）。
+    </p>
     <p v-if="err" class="tag danger">{{ err }}</p>
 
     <div class="panel">
@@ -60,20 +63,46 @@ onMounted(async () => {
       <h3 style="margin-top:0">最近一趟</h3>
       <p>
         批次 <span class="mono">{{ last.batch_no }}</span> · {{ last.stream_title }} ·
-        <span class="tag ok">{{ last.status }}</span>
+        <span class="tag ok">{{ last.status }}</span> ·
+        键变更策略 <span class="tag">{{ last.key_change_policy }}</span>
       </p>
       <div class="stat-grid">
         <div class="stat"><div class="stat-num">{{ last.source_events }}</div><div class="stat-label">源事件</div></div>
         <div class="stat"><div class="stat-num">{{ last.applied_upsert }}</div><div class="stat-label">写入</div></div>
         <div class="stat"><div class="stat-num">{{ last.applied_delete }}</div><div class="stat-label">删除</div></div>
+        <div class="stat"><div class="stat-num">{{ last.applied_rename }}</div><div class="stat-label">键迁移</div></div>
+        <div class="stat"><div class="stat-num">{{ last.rejected_rename }}</div><div class="stat-label">键拒绝</div></div>
         <div class="stat"><div class="stat-num">{{ last.skipped_duplicate }}</div><div class="stat-label">跳过重复</div></div>
         <div class="stat"><div class="stat-num">{{ last.projected_alive }}</div><div class="stat-label">存活</div></div>
         <div class="stat"><div class="stat-num">{{ last.projected_deleted }}</div><div class="stat-label">已删</div></div>
+      </div>
+      <div v-if="last.key_change_traces && last.key_change_traces.length" style="margin-top:0.75rem">
+        <h3>本趟键变更</h3>
+        <table>
+          <thead>
+            <tr><th>event_id</th><th>旧键 → 新键</th><th>seq</th><th>处置</th><th>原因</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="t in last.key_change_traces" :key="t.event_id">
+              <td class="mono">{{ t.event_id }}</td>
+              <td class="mono">{{ t.old_key }} → {{ t.new_key }}</td>
+              <td class="mono">{{ t.seq }}</td>
+              <td>
+                <span class="tag" :class="t.decision === 'migrated' ? 'ok' : 'danger'">
+                  {{ t.decision === 'migrated' ? '已迁移' : '已拒绝' }}
+                </span>
+              </td>
+              <td class="mono">{{ t.reason || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <p style="margin-top:0.75rem">
         <router-link :to="{ path: '/projections', query: { stream_id: last.stream_id } }">查看投影快照 →</router-link>
         ·
         <router-link :to="{ path: '/events', query: { batch_id: last.id } }">事件留痕 →</router-link>
+        ·
+        <router-link to="/key-changes">键变更留痕 →</router-link>
       </p>
     </div>
 
@@ -83,7 +112,7 @@ onMounted(async () => {
         <thead>
           <tr>
             <th>批次</th><th>投影流</th><th>状态</th>
-            <th>源事件</th><th>写入</th><th>删除</th><th>存活</th><th>已删</th><th>时间</th>
+            <th>源事件</th><th>写入</th><th>删除</th><th>键迁移</th><th>键拒绝</th><th>存活</th><th>已删</th><th>时间</th>
           </tr>
         </thead>
         <tbody>
@@ -94,11 +123,13 @@ onMounted(async () => {
             <td>{{ b.source_events }}</td>
             <td>{{ b.applied_upsert }}</td>
             <td>{{ b.applied_delete }}</td>
+            <td>{{ b.applied_rename }}</td>
+            <td>{{ b.rejected_rename }}</td>
             <td>{{ b.projected_alive }}</td>
             <td>{{ b.projected_deleted }}</td>
             <td class="mono">{{ b.created_at }}</td>
           </tr>
-          <tr v-if="!batches.length"><td colspan="9" class="muted">还没有批次，先跑一趟。</td></tr>
+          <tr v-if="!batches.length"><td colspan="11" class="muted">还没有批次，先跑一趟。</td></tr>
         </tbody>
       </table>
     </div>

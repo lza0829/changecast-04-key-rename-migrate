@@ -18,8 +18,9 @@ def replace_stream_projection(
         conn.execute(
             """
             INSERT INTO projection_rows(
-                stream_id, entity_key, payload_json, applied_seq, applied_event_id, deleted, updated_at
-            ) VALUES (?,?,?,?,?,?,?)
+                stream_id, entity_key, payload_json, applied_seq, applied_event_id, deleted,
+                renamed_from, prev_applied_seq, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?)
             """,
             (
                 stream_id,
@@ -28,6 +29,8 @@ def replace_stream_projection(
                 row["applied_seq"],
                 row["applied_event_id"],
                 1 if row.get("deleted") else 0,
+                row.get("renamed_from"),
+                row.get("prev_applied_seq"),
                 updated_at,
             ),
         )

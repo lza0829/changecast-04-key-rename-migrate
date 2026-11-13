@@ -8,6 +8,12 @@ const rows = ref([])
 const batchId = ref(null)
 const err = ref('')
 
+function resultClass(result) {
+  if (result && result.startsWith('rejected')) return 'danger'
+  if (result && result.startsWith('skipped')) return 'warn'
+  return 'ok'
+}
+
 async function refresh() {
   const q = new URLSearchParams()
   if (batchId.value) q.set('batch_id', String(batchId.value))
@@ -30,7 +36,7 @@ watch(batchId, async () => {
 <template>
   <div class="page">
     <h1>事件留痕</h1>
-    <p class="muted">本批（或全部）已处理事件：结果为写入 / 删除 / 跳过重复。</p>
+    <p class="muted">本批（或全部）已处理事件：结果为写入 / 删除 / 键迁移 / 键拒绝 / 跳过重复。键变更详情见「键变更」页。</p>
     <p v-if="err" class="tag danger">{{ err }}</p>
     <div class="panel" style="display:flex;gap:0.75rem;align-items:flex-end">
       <label>
@@ -54,7 +60,7 @@ watch(batchId, async () => {
             <td class="mono">{{ e.op }}</td>
             <td class="mono">{{ e.seq }}</td>
             <td class="mono">{{ e.event_time }}</td>
-            <td><span class="tag">{{ e.result }}</span></td>
+            <td><span class="tag" :class="resultClass(e.result)">{{ e.result }}</span></td>
           </tr>
           <tr v-if="!rows.length"><td colspan="7" class="muted">暂无留痕。</td></tr>
         </tbody>
